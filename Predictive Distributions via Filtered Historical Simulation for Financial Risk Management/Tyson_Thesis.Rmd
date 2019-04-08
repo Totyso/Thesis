@@ -13,21 +13,43 @@ bibliography: ./Thesis_bibliography.bib
 
 #Introduction
 Investors often fail to account for risks included in their portfolios when things are going well. This was a major issue prior to the 2008 global financial crisis, and the crisis reminded many of the importance of evaluating risk. This was most apparent for investment banks that experienced large losses as a result of some risky assets in their portfolios that were not properly accounted for. Because of the importance of banks in our economy, there are regulations in place that require banks to stress-test their portfolios to evaluate the risk exposure.
-\newline
+
 Since financial data is not i.i.d. normal, it can be difficult to account for the periods of volatily when something such as the 2008 financial crisis occurs. In this paper, I intend to show that a symmetric GARCH model when bootstrapped in a filtered historical simulation allows for this volatility clustering pattern and will provide more accurate VaR metrics for banks that are seeking to remain compliant with the 10-day, 1% significance VaR levels set by regulations established in Basel II. 
-\newline
+
 In this paper I will show a model that banks have begun to use to meet Basel II requirements. Basel II requires banks using internal VaR models to evaluate their risk at the 99\% significance level. It also requires banks to measure potential losses for a 10-day risk horizon. Filtered historical simulation is a semi-parametric approach that combines Monte Carlo simulation based on volatily clustering patterns with the empirical non-normal return distributions from historical data. This overcomes many issues of basic historical simulation by allowing it to find an h-day VaR where h is more than just a few days, and that as it is a non-parametric model, it will not account for the volatility currently prevailing in the market (@alexander2009market). Filtered historical simulation becomes this semi-parametric model by combining an estimated GARCH model with the i.i.d. bootstrap. This allows the model to account for value correlations without restricting them over time.
-\newline
+
 The GARCH process underlying this filtered historical simulation started as a less complex autoregressive conditional heteroskedasticity (ARCH) model invented by Robert Engle (@engle1995arch). This model as well as the GARCH model I will be using to further discuss filtered historical simulation are explained in detail by @enders2008applied. The model was made to account for volatility clustering patterns as is often seen with financial data that will experience market shocks such as bubbles, where a model assuming constant variance is inappropriate. For comparison to the later shown GARCH model, the simplest form of the ARCH model is the ARCH(1) model denoted by $y_{t} = x_{t}^{'}\beta + \epsilon_{t}$ where $\epsilon_{t} = u_{t} \sqrt{\alpha_{0} + \alpha_{1} \epsilon_{t-1}^{2}}$ and $u_{t}$ ~ N(0,1). This $\epsilon_{t}$ term is what is allowing for the conditional heteroskedasticity.
-\newline
+
 This ARCH model has some notable weaknesses. It assumes that positive and negative shocks have the same effects on volatility because it depends on the square of the previous shocks. $\alpha_{t}^{2}$ must remain in certain intervals in certain instances which limits the ability of an ARCH model to allow for excess kurtosis. It also is likely to overpredict the volatility because they respond slowly to large isolated shocks to the series.
-\newline
+
 Due to some of these limitations, the generalized autoregressive conditional heteroskedasticity (GARCH) model was introduced by @bollerslev1986generalized. The GARCH model extends Engle's ARCH model by allowing the conditional variance to be an autoregressive moving average (ARMA) process. This allows for both autoregressive and moving average components in the heteroskedastic variance. The basis GARCH(1,1) model can be denoted as $\sigma_{t}^{2} = \omega + \alpha \epsilon_{t-1}^{2} + \beta \sigma_{t-1}^{2}$. We can see that if this last term in the equation is dropped out, we are left with our ARCH model from before.
-\newline
+
 It is easy to see here in the introduction to filtered historical simulation that all of these models and computational techniques are all classical, there is a very Bayesian feel to the overall method, especially concerning the results that are produced. Through the statistical bootsrap of the GARCH process, we produce a predictive distribution that shows a distribution of the VaR for an h-day horizon. As these are all classical techniques, filtered historical simulation is rarely, if ever, looked at from a Bayesian perspective. This is a unique approach that I would like to apply to filtered historical simulation, and the interpretations that can be made thereafter.
-\newline
+
+#VaR Overview and Models
+
+Since the 1990s, almost all financial institutions use some sort of VaR measure. @@alexander2009market outlines some important advantages of a VaR measure, including: VaR calculates an amount that could be lost with some predetermined probability, VaR measures the risk factors as well as their sensitivities, its scalability, and others. Risk management is important for banks because they need to know what their level of risk tolerance is to determine if certain risks will be held or hedged away. Before this can be determined, banks need a way to measure this risk.
+
 As mentioned previously, VaR is a very important metric for banks to consider. As such, many different methods of calculating VaR have appeared. I will highlight three methods mentioned by @alexander2009market in her book 'Market Risk Analysis: Volume IV': normal linear VaR, historical simulation, and Monte Carlo simulation. Again, as stated previously, filtered historical simulation uses aspects of historical simulation and Monte Carlo simulation that allow it to be a semi-parametric model that allows it to be the optimal model for banks to calculate their h-day VaR models.
-\newline
+
 I will only briefly mention normal linear VaR, as it is only appropriate when a portfolio P&L is a linear function of its risk factors or asset returns. As such, it is not ideal for almost any financial asset.
-\newline
+
 Historical simulation is the method that is the easiest to conceptualize. Most, if not all, investors have looked at previous return data when looking at their future investment decisions. In fact, I would assume that most novice investors believe this is the best method of estimating future returns. Historical simulation's biggest issue is that it assumes that all possible future variations have occurred in the past. Looking back at each individual financial crisis, we can see that these models will vastly under-predict the possibility of some new market failure as a result of some issue that has not previously occurred.
+
+The third method for modeling VaR is Monte Carlo simulation. Monte Carlo is useful since it can be applied to non-linear portfolios. Monte Carlo doesn't look back at historical data, however, and may not be the most useful tool for looking at risk estimates based off of historical volatility clustering patterns.
+
+#Filtered Historical Simulation
+
+Filtered historical simulation was first introduced by @barone1999var. It is a great method for determining VaR for portfolios, as it uses both nonlinear econometric models and historical returns to build the predictive density that the portfolio could take for multiple days looking forward. Rather than most models which suffer the problem of underestimating the risk of extreme outcomes, filtered historical simulation risk estimated are derived directly from the tails of the distribution.
+
+In filtered historical simulation, price series are not forced to conform to a probability distribution, but the data are allowed to speak for themselves. Historic data is still considered, which is important as Monte Carlo, which only draws from a theoretical distribution, smooths the empirical distribution and may underestimate the risk of catastrophe. It generates thousands of scenarios for the mean and variance of each risk factor in a multi-period horizon. This allows filtered historical simulation to provide a more accurate depiction of the tail structure in future prices. These features make filtered historical simulation very easy to implement in risk analysis and stress-testing.
+
+Filtered historical simulation works by using a parametric model of return volatility, such as a GARCH model as I will use, to simulate log returns over some predefined risk horizon. Using the estimated GARCH model $\hat{\sigma}_{t+1}^{2} = \hat{\omega} + \hat{\alpha} r_{t}^{2} \hat{\beta} \hat{\sigma}_{t}^{2}$, filtered historical simulation will assume that GARCH draws from the standardized empirical distribution, so therefore the standardized innovations are $\epsilon_{t} = r_{t} / \hat{\sigma}_{t}$. $r_{t}$ represents the historical daily log return and $\hat{\sigma}_{t}^{2}$ represents the GARCH daily standard deviation.
+
+The simulation process begins by setting initial conditions $\tilde{\sigma}_{0}$ and $\tilde{r}_{0}$. $\tilde{r}_{0}$ will be set equal to the log return from the previous day, but there are two different options for setting  $\tilde{\sigma}_{0}$.
+
+
+
+\newpage
+
+#Bibliography

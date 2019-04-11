@@ -6,10 +6,6 @@ date: "April 5, 2019"
 output: pdf_document
 bibliography: ./Thesis_bibliography.bib
 ---
-@alexander2008market
-@alexander2009market
-@barone1999var
-@enders2008applied
 
 #Introduction
 Investors often fail to account for risks included in their portfolios when things are going well. This was a major issue prior to the 2008 global financial crisis, and the crisis reminded many of the importance of evaluating risk. This was most apparent for investment banks that experienced large losses as a result of some risky assets in their portfolios that were not properly accounted for. Because of the importance of banks in our economy, there are regulations in place that require banks to stress-test their portfolios to evaluate the risk exposure.
@@ -24,7 +20,7 @@ This ARCH model has some notable weaknesses. It assumes that positive and negati
 
 Due to some of these limitations, the generalized autoregressive conditional heteroskedasticity (GARCH) model was introduced by @bollerslev1986generalized. The GARCH model extends Engle's ARCH model by allowing the conditional variance to be an autoregressive moving average (ARMA) process. This allows for both autoregressive and moving average components in the heteroskedastic variance. The basis GARCH(1,1) model can be denoted as $\sigma_{t}^{2} = \omega + \alpha \epsilon_{t-1}^{2} + \beta \sigma_{t-1}^{2}$. We can see that if this last term in the equation is dropped out, we are left with our ARCH model from before.
 
-It is easy to see here in the introduction to filtered historical simulation that all of these models and computational techniques are all classical, there is a very Bayesian feel to the overall method, especially concerning the results that are produced. Through the statistical bootsrap of the GARCH process, we produce a predictive distribution that shows a distribution of the VaR for an h-day horizon. As these are all classical techniques, filtered historical simulation is rarely, if ever, looked at from a Bayesian perspective. This is a unique approach that I would like to apply to filtered historical simulation, and the interpretations that can be made thereafter.
+It is easy to see here in the introduction to filtered historical simulation that all of these models and computational techniques are all from the classical frequentist perspective, there is a very Bayesian feel to the overall method, especially concerning the results that are produced. Through the statistical bootsrap of the GARCH process, we produce a predictive distribution that shows a distribution of the VaR for an h-day horizon. As these are all classical techniques, filtered historical simulation is rarely, if ever, looked at from a Bayesian perspective. This is a unique approach that I would like to apply to filtered historical simulation, and the interpretations that can be made thereafter.
 
 #VaR Overview and Models
 
@@ -46,9 +42,148 @@ In filtered historical simulation, price series are not forced to conform to a p
 
 Filtered historical simulation works by using a parametric model of return volatility, such as a GARCH model as I will use, to simulate log returns over some predefined risk horizon. Using the estimated GARCH model $\hat{\sigma}_{t+1}^{2} = \hat{\omega} + \hat{\alpha} r_{t}^{2} \hat{\beta} \hat{\sigma}_{t}^{2}$, filtered historical simulation will assume that GARCH draws from the standardized empirical distribution, so therefore the standardized innovations are $\epsilon_{t} = r_{t} / \hat{\sigma}_{t}$. $r_{t}$ represents the historical daily log return and $\hat{\sigma}_{t}^{2}$ represents the GARCH daily standard deviation.
 
-The simulation process begins by setting initial conditions $\tilde{\sigma}_{0}$ and $\tilde{r}_{0}$. $\tilde{r}_{0}$ will be set equal to the log return from the previous day, but there are two different options for setting  $\tilde{\sigma}_{0}$.
+The simulation process begins by setting initial conditions $\tilde{\sigma}_{0}$ and $\tilde{r}_{0}$. $\tilde{r}_{0}$ will be set equal to the log return from the previous day, but there are at lease two different options for setting  $\tilde{\sigma}_{0}$.
+
+The two options I will explore are first, setting $\tilde{\sigma}_{0}$ equal to the last estimated daily conditional volatility from the GARCH model. The second option is to set $\tilde{\sigma}_{0}$ equal to the long run unconditional volatility $\hat{\omega} / (1 - \hat{\alpha} - \hat{\beta})$. This will give a return on the forecasted day 1 of $r_{1} = \epsilon_{1} \hat{\sigma}_{1}$. The value $\epsilon_{t}$ will be drawn independently via the i.i.d. bootstrap. I can now simply iterate through $\hat{\sigma}_{t+1}^{2} = \hat{\omega} + \hat{\alpha} r_{t}^{2} \hat{\beta} \hat{\sigma}_{t}^{2}$. Since I have used log returns, the h-day return is simply $\Sigma_{t}^{h} r_{t}$.
+
+Repeating this through simulation will produce a predictive density that can be used for VaR estimation. The h-day return will be displayed in the distribution to show the probability distribution of the h-day returns. To demonstrate this, I have coded filtered historical simulation models with corresponding bootstraps of the underlying GARCH processes for both the s&P 500 from December 1, 1994 to March 31, 2008 and IBM from the beginning of 1999 to the end of 2003. The S&P data was chosen to show the volatility clustering patterns even for the overall market, and the extreme shocks shown in 2008 that occurred because of the financial crisis. IBM is a relatively 'safe' stock that has not had any major issues in the past, but will work well for my purposes in showing the effectiveness of filtered historical simulation.
+
+First, let's take a look at the volatility of the S&P 500 from January 2, 1995 to March 31, 2008 below. It is easy to notice the volatility clustering patterns that make GARCH an excellent candidate for determining the volatility in the underlying. With just a simple volatility calculation, these patterns will not be taken into account, and the VaR will be underestimated, potentially leading to greater than expected losses in a portfolio.
+
+```{r, echo=FALSE, fig.align="center", out.width="50%"}
+knitr::include_graphics("plot.jpeg")
+```
+
+To calculate the VaR through filtered historical simulation, first I need to estimate a GARCH model to account for volatility clustering patterns as seen above. I used the optimizer 'rugarch' from R to optimize the GARCH parameters $\hat{\omega}$, $\hat{\alpha}$, and $\hat{\beta}$. These are the estimated parameters that were used in the i.i.d. bootstrap process, for filtered historical simulation. Below I have included the printed code for the S&P 500 data, and the full S&P 500 and IBM code can be found in the linked Github Repository. As is shown by @mcdonald2009fundamentals, there are jumps in the return data for IBM surrounding earnings announcements that the GARCH model has difficulty explaining, so those 5 particular dates have been omitted from the optimization process. 
+
+```{r, echo=TRUE, eval=FALSE}
+SP <- read.csv("S&P_data.csv", header=T)
+SP$RET <- log(SP$spindx[2:3355] / SP$spindx)
+
+index <- as.Date(as.character(SP$DATE), "%Y%m%d")
+ret <- zoo(SP$RET, as.Date(as.character(SP$DATE), "%Y%m%d"))
+
+spec <- ugarchspec(mean.model = list(armaOrder = c(0,0), include.mean=FALSE))
+
+data <- zoo
+fit <- ugarchfit(data = ret, spec = spec, solver="hybrid")
+
+what <- coef(fit)[1]
+ahat <- coef(fit)[2]
+bhat <- coef(fit)[3]
+```
+
+After the optimizer has found the values of $\hat{\omega}$, $\hat{\alpha}$, and $\hat{\beta}$, they can be used in the i.i.d. bootstrap process of filtered historical simulation. I will first find the scaled volatility adjusted VaR using the GARCH process to compare my results in filtered historical simulation.
+
+```{r, echo=TRUE, eval=FALSE}
+SP = pd.read_csv('S&P_data.csv', parse_dates=[0])
+SP = SP.loc[20:]
+SP.reset_index(inplace=True)
+
+## GARCH
+
+n = SP.shape[0]
+SP['Rtn'] = np.empty(n)
+
+for i in range(1, n):
+    SP.loc[i, 'Rtn'] = np.log(SP['spindx'][i] / SP['spindx'][i-1])
+    
+SP.loc[0, 'Rtn'] = np.mean(SP['Rtn'][1:])
+
+SP['(Rtn-Rbar)^2'] = np.empty(n)
+
+for i in range(0, n):
+    SP.loc[i, '(Rtn-Rbar)^2'] = (SP['Rtn'][i] - SP['Rtn'][0]) ** 2
+    
+# Conditions From Optimizer
+    
+gamma = 1.191562e-06
+alpha = 0.08305225
+beta = 0.9094939
+alpha_beta = alpha + beta
+LT_vol = np.sqrt(250*(gamma)/(1-alpha_beta))
+
+SP['Cond Var'] = np.empty(n)
+SP.loc[0, 'Cond Var'] = SP['Rtn'][0] ** 2
+
+for i in range(1, n):
+    SP.loc[i, 'Cond Var'] = gamma + alpha * SP['(Rtn-Rbar)^2'][i-1] + beta * SP['Cond Var'][i-1]
+    
+SP['Log L'] = np.empty(n)
+SP.loc[0, 'Log L'] = '--'
+
+for i in range(1, n):
+    SP.loc[i, 'Log L'] = -(np.log(np.sqrt(SP['Cond Var'][i])))-0.5*(SP['(Rtn-Rbar)^2'][i]/SP['Cond Var'][i])
+    
+SP['GARCH vol'] = np.empty(n)
+SP.loc[0, 'GARCH vol'] = '--'
+
+for i in range(1, n):
+    SP.loc[i, 'GARCH vol'] = np.sqrt(SP['Cond Var'][i] * 250)
+    
+LogL = np.sum(SP['Log L'][1:])
+LogL
+
+# Returns
+
+Returns = pd.read_csv('S&P_data.csv', parse_dates=[0])
+Returns = Returns.loc[20:]
+Returns.reset_index(inplace=True)
+
+Returns['GARCH Rtn'] = np.empty(n)
+Returns.loc[0, 'GARCH Rtn'] = SP['Rtn'][0]
+
+for i in range(1, n):
+    Returns.loc[i, 'GARCH Rtn'] = SP['Rtn'][i] * (SP['GARCH vol'][n-1] / SP['GARCH vol'][i])
+
+## Historical VaR Estimates
+
+Quantiles = [0.10, 1, 5, 10]
+VaR = pd.DataFrame({'Quantile': ['0.10%', '1%', '5%', '10%'], 'Rtn': [0.0, 0.0, 0.0, 0.0], 'GARCH Rtn': [0.0, 0.0, 0.0, 0.0]})
+
+for i in range(0, 4):
+    VaR.loc[i, 'Rtn'] = -np.percentile(SP['Rtn'], Quantiles[i])
+    
+for i in range(0, 4):
+    VaR.loc[i, 'GARCH Rtn'] = -np.percentile(Returns['GARCH Rtn'], Quantiles[i])
+    
+VaR
+```
 
 
+```{r, echo=FALSE, fig.align="center"}
+knitr::include_graphics("SP_Historical.png")
+```
+
+
+The table above shows the 1-day VaR for the S&P 500 on March 31, 2008, the last day of my sample. We can see here that unadjusted volatility will severely underestimate a VaR. Using GARCH to correctly adjust for volatility clustering shows a much higher VaR in each respective quantile. This is a very important finding, especially for banks that have a limit on VaR they are allowed to have in their respective portfolios. A simple volatility model will allow banks to take on substantial risk, which can be catastrophic in the event of a tail event, as we saw within this sample in 2008.
+
+This simple GARCH volatility estimate can now be bootstrapped to allow for an h-day VaR to be calculated.
+
+```{r, echo=TRUE, eval=FALSE}
+n = SP.shape[0]
+
+GARCH_standardized = np.empty(n-1)
+
+for i in range(0, n-1):
+    GARCH_standardized[i] = SP['Rtn'][i+1] / np.sqrt(SP['Cond Var'][i+1])
+
+# Set Initial Standard Deviation
+
+current_std = SP['GARCH vol'][n-1] / np.sqrt(250)
+ten_vol_std = 0.1 / np.sqrt(250)
+
+Starting_values = pd.DataFrame({'sigma0': [current_std], 'r0': [SP['Rtn'][n-1]]})
+Starting_values['sigma1'] = np.sqrt(gamma + alpha * (Starting_values['r0'][0]) ** 2 + beta * Starting_values['sigma0'][0] ** 2)
+```
+
+```{r, echo=FALSE, fig.align="center"}
+knitr::include_graphics("SP_FHS.png")
+```
+
+```{r, echo=FALSE, fig.align="center"}
+knitr::include_graphics("SP_distribution.png")
+```
 
 \newpage
 
